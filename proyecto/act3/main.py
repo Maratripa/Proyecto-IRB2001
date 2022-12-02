@@ -12,13 +12,13 @@ class SerialCom():
         except:
             print("No se ha establecido conexion...")
             self.serial = None
-        
+
         self.data = {}
-    
+
     def start_data_thread(self):
         thread = threading.Thread(target=self.send_data, args=(), daemon=True)
         thread.start()
-    
+
     def send_data(self):
         while self.serial is not None:
             if self.data != {}:
