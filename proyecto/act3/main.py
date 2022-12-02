@@ -32,31 +32,24 @@ class SerialCom():
                 time.sleep(0.01)
 
 def main(src):
-    video_getter = proc.VideoGet(src).start()
-    video_shower = proc.VideoShow(video_getter.frame).start()
-    processor = proc.ProcessMasks(video_getter.frame, video_shower.masked_colors).start()
+    capture = proc.VideoCapture(src).start()
+    processor = proc.ProcessMasks(capture.frame, capture.masked_colors).start()
 
     com = SerialCom("COM10", 38400, 1)
     com.start_data_thread()
 
     while True:
-        if video_getter.stopped or video_shower.stopped:
-            video_shower.stop()
-            video_getter.stop()
+        if capture.stopped or processor.stopped:
+            capture.stop()
             processor.stop()
             break
 
-        frame = video_getter.frame
-        processor.frame = frame
-
-        video_shower.frame = frame
-        video_shower.centers = processor.centers
-
-        processor.masked_colors = video_shower.masked_colors
-        video_shower.mask = processor.get_joint_masks()
+        processor.frame = capture.frame
+        processor.masked_colors = capture.masked_colors
+        capture.centers = processor.centers
+        capture.mask = processor.get_joint_masks() # type:ignore
 
         com.data = processor.data
-        time.sleep(0.01)
 
 if __name__ == "__main__":
     source = int(sys.argv[1])
