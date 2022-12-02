@@ -14,20 +14,20 @@ class VideoGet:
         self.stream = cv2.VideoCapture(src)
         (self.grabbed, self.frame) = self.stream.read()
         self.stopped = False
-    
+
     def start(self):
         thread = threading.Thread(target=self.get, args=(), daemon=True)
         thread.start()
         return self
-    
+
     def get(self):
         while not self.stopped:
             if not self.grabbed:
                 self.stop()
-                
+
             (self.grabbed, self.frame) = self.stream.read()
             time.sleep(0.01)
-    
+
     def stop(self):
         self.stopped = True
 
@@ -39,7 +39,7 @@ class VideoShow:
         self.stopped = False
         self.masked_colors = []
         self.centers = []
-    
+
     def mouse_callback(self, event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
             if self.frame is not None:
@@ -66,11 +66,10 @@ class VideoShow:
             if len(self.centers) > 2:
                 for point in self.centers:
                     cv2.circle(result, point, 5, (255, 0, 0), -1) # type: ignore
-            
+
                 cv2.line(result, self.centers[0], self.centers[1], (0, 255, 0), 3) #type: ignore , linea adelante atras
                 cv2.line(result, self.centers[1], self.centers[2], (0, 0, 255), 3) #type: ignore , linea atras pelota
-                
-            
+
             cv2.imshow("Video", self.frame)
             cv2.imshow("Masks", result)
 
@@ -80,7 +79,7 @@ class VideoShow:
             elif k == ord('u'):
                 self.masked_colors.pop()
             time.sleep(0.01)
-    
+
     def stop(self):
         self.stopped = True
 
@@ -100,11 +99,11 @@ class ProcessMasks:
         }
 
         self.centers = []
-    
+
     @property
     def frame(self):
         return self.__frame
-    
+
     @frame.setter
     def frame(self, value):
         self.__frame = value
@@ -121,16 +120,16 @@ class ProcessMasks:
                         mask2 = cv2.inRange(hsv, np.array([color - 10, 100, 50]),
                             np.array([color + 10, 255, 255]))
                         mask1 = cv2.bitwise_or(mask1, mask2)
-                    
+
                 return mask1
-    
+
     # @nb.njit
     def get_masks(self):
         if self.frame is not None:
             hsv = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV)  # type: ignore
-            self.masks = [cv2.inRange(hsv, np.array([i - 10, 100, 50]), 
-                np.array([i + 10, 255, 255])) for i in self.masked_colors]            
-    
+            self.masks = [cv2.inRange(hsv, np.array([i - 10, 100, 50]),
+                np.array([i + 10, 255, 255])) for i in self.masked_colors]
+
     # @nb.njit
     def get_centers(self) -> list:
         if len(self.masks) > 0:

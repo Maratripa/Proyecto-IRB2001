@@ -9,14 +9,14 @@ class Options:
         self.masks = [] # Masks
         self.frame = None
         self.hsv: cv.Mat = np.array([])
-    
+
     def mouse_click(self, event, x, y, flags, param):
         if event == cv.EVENT_LBUTTONDOWN:
             if frame is not None:
                 colors = frame[y, x]
                 hsv = cv.cvtColor(np.uint8([[colors]]), cv.COLOR_BGR2HSV)
                 self.masked_colors.append(hsv[0][0][0])
-    
+
     def get_masks(self):
         self.masks = [cv.inRange(self.hsv, np.array([i - 10, 100, 50]), np.array([i + 10, 255, 255])) for i in self.masked_colors]
         if len(self.masked_colors) > 0:
@@ -26,7 +26,7 @@ class Options:
                 mask1 = cv.bitwise_or(mask1, mask2)
 
             return mask1
-    
+
     def get_centers(self) -> list:
         if len(self.masked_colors) > 0:
             centers = []
@@ -52,10 +52,10 @@ if __name__ == "__main__":
     if not cap.isOpened():
         print("Cannot open camera")
         exit()
-    
+
     cv.namedWindow('frame')
     cv.setMouseCallback('frame', options.mouse_click)
-    
+
     while True:
         # Capture frame-by-frame
         ret, options.frame = cap.read()
@@ -66,17 +66,17 @@ if __name__ == "__main__":
         if not ret:
             print("Can't receive frame (stream end?). Exiting ...")
             break
-        
+
         if len(options.masked_colors) > 0:
             mask = options.get_masks()
             result = cv.bitwise_and(frame, frame, mask=mask)
         else:
             result = frame
-        
+
         centers = options.get_centers()
         for point in centers:
             cv.circle(result, point, 5, (0, 0, 255), -1)
-        
+
         """ guia centros
         [0] -> adelante auto 1
         [1] -> atras auto 1
@@ -107,7 +107,7 @@ if __name__ == "__main__":
                     angulo -= 2 * np.pi
                 elif angulo < -np.pi:
                     angulo += 2 * np.pi
-                
+
                 cv.putText(result, f"Angulo A1 | pelota: {angulo * 180 / np.pi}°", (10, 10), font, .3, (255, 255, 255), 1, cv.LINE_AA)
                 cv.putText(result, f"d1 adelante a1 | pelota: {norm_2} px", (10, 20), font, .3, (255, 255, 255), 1, cv.LINE_AA)
 
@@ -130,7 +130,7 @@ if __name__ == "__main__":
             break
         elif k == ord('u'):
             options.masked_colors.pop()
-    
+
     # When everything done, release the capture
     cap.release()
     cv.destroyAllWindows()
