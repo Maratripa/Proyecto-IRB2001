@@ -74,8 +74,11 @@ class VideoShow:
             cv2.imshow("Video", self.frame)
             cv2.imshow("Masks", result)
 
-            if cv2.waitKey(1) == ord('q'):
+            k = cv2.waitKey(1)
+            if k == ord('q'):
                 self.stop()
+            elif k == ord('u'):
+                self.masked_colors.pop()
             time.sleep(0.01)
     
     def stop(self):
