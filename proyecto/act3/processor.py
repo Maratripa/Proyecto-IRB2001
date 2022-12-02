@@ -31,21 +31,20 @@ class VideoCapture:
         (self.grabbed, self.frame) = self.stream.read()
     
     def show(self):
-        if self.mask is not None:
-                result = cv2.bitwise_and(self.frame, self.frame, mask=self.mask) # type: ignore
-        else:
-            result = self.frame
+        # if self.mask is not None:
+        #     result = cv2.bitwise_and(self.frame, self.frame, mask=self.mask) # type: ignore
+        # else:
+        result = cv2.bitwise_and(self.frame, self.frame)
+
+        for point in self.centers:
+            cv2.circle(result, point, 6, (255, 255, 255), -1) # type: ignore
 
         # Draw centers and lines
         if len(self.centers) > 2:
-            for point in self.centers:
-                cv2.circle(result, point, 5, (255, 0, 0), -1) # type: ignore
+            cv2.line(result, self.centers[0], self.centers[1], (255, 255, 255), 3) #type: ignore , linea adelante atras
+            cv2.line(result, self.centers[1], self.centers[2], (255, 255, 255), 3) #type: ignore , linea atras pelota
 
-            cv2.line(result, self.centers[0], self.centers[1], (0, 255, 0), 3) #type: ignore , linea adelante atras
-            cv2.line(result, self.centers[1], self.centers[2], (0, 0, 255), 3) #type: ignore , linea atras pelota
-
-        cv2.imshow("Video", self.frame)
-        cv2.imshow("Masks", result)
+        cv2.imshow("Video", result)
     
     def start(self):
         thread = threading.Thread(target=self.main, args=(), daemon=True)
@@ -53,11 +52,12 @@ class VideoCapture:
         return self
     
     def main(self):
+        
         cv2.namedWindow("Video")
         cv2.setMouseCallback("Video", self.mouse_callback)
         while True:
             self.get()
-            self.show
+            self.show()
 
             k = cv2.waitKey(1)
             if k == ord('q'):
@@ -65,10 +65,8 @@ class VideoCapture:
             elif k == ord('u'):
                 self.masked_colors.pop()
 
-            time.sleep(0.01)
-
     def stop(self):
-        self.stopped = False
+        self.stopped = True
 
 class ProcessMasks:
     """Class that gets masks, centers and data for post-processing using a different thread"""
@@ -144,6 +142,7 @@ class ProcessMasks:
             [3] -> adelante auto 2
             [4] -> atras auto 2
             """
+            # timestamp = time.time()
             if len(self.centers) > 2:
                 v1 = np.array(self.centers[0]) - np.array(self.centers[1]) # adelante - atras
                 v2 = np.array(self.centers[2]) - np.array(self.centers[1]) # pelota - atras
@@ -168,6 +167,9 @@ class ProcessMasks:
                     v3 = np.array(self.centers[0]) - np.array(self.centers[3])
                     norm_3 = np.linalg.norm(v3)
                     self.data['d2'] = float(norm_3)
+                
+                time.sleep(0.001)
+                # print(f"FPS: {int(1/(time.time() - timestamp))}")
 
     def stop(self):
         self.stopped = True
@@ -185,4 +187,4 @@ if __name__ == "__main__":
         processor.frame = capture.frame
         processor.masked_colors = capture.masked_colors
         capture.centers = processor.centers
-        capture.mask = processor.get_joint_masks() # type: ignore
+        # capture.mask = processor.get_joint_masks() # type: ignore
