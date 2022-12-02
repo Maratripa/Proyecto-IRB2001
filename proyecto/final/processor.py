@@ -5,16 +5,39 @@ https://nrsyed.com/20183/07/05/multithreading-with-opencv-python-to-improve-vide
 import cv2
 import threading
 import numpy as np
+import numba as nb
 import time
 
-class VideoCapture:
+class VideoGet:
+    """Get frame with dedicated thread"""
     def __init__(self, src=0):
         self.stream = cv2.VideoCapture(src)
         (self.grabbed, self.frame) = self.stream.read()
         self.stopped = False
 
+    def start(self):
+        thread = threading.Thread(target=self.get, args=(), daemon=True)
+        thread.start()
+        return self
+
+    def get(self):
+        while not self.stopped:
+            if not self.grabbed:
+                self.stop()
+
+            (self.grabbed, self.frame) = self.stream.read()
+            time.sleep(0.01)
+
+    def stop(self):
+        self.stopped = True
+
+class VideoShow:
+    """Class that continuously shows a frame using a different thread"""
+    def __init__(self, frame=None, mask=None):
+        self.frame = frame
+        self.mask = mask
+        self.stopped = False
         self.masked_colors = []
-        self.mask = None
         self.centers = []
 
     def mouse_callback(self, event, x, y, flags, param):
@@ -24,48 +47,38 @@ class VideoCapture:
                 hsv = cv2.cvtColor(np.array([[colors]], dtype=np.uint8), cv2.COLOR_BGR2HSV)
                 self.masked_colors.append(hsv[0][0][0])
                 print("Color added to masked_colors")
-    
-    def get(self):
-        if not self.grabbed:
-            self.stop()
-        (self.grabbed, self.frame) = self.stream.read()
-    
-    def show(self):
-        # if self.mask is not None:
-        #     result = cv2.bitwise_and(self.frame, self.frame, mask=self.mask) # type: ignore
-        # else:
-        result = cv2.bitwise_and(self.frame, self.frame)
 
-        for point in self.centers:
-            cv2.circle(result, point, 6, (255, 255, 255), -1) # type: ignore
-
-        # Draw centers and lines
-        if len(self.centers) > 2:
-            cv2.line(result, self.centers[0], self.centers[1], (255, 255, 255), 3) #type: ignore , linea adelante atras
-            cv2.line(result, self.centers[1], self.centers[2], (255, 255, 255), 3) #type: ignore , linea atras pelota
-
-        cv2.imshow("Video", result)
-    
     def start(self):
-        thread = threading.Thread(target=self.main, args=(), daemon=True)
+        thread = threading.Thread(target=self.show, args=(), daemon=True)
         thread.start()
         return self
-    
-    def main(self):
+
+    def show(self):
         cv2.namedWindow("Video")
         cv2.setMouseCallback("Video", self.mouse_callback)
-        while True:
-            self.get()
-            self.show()
+        while not self.stopped:
+            if self.mask is not None:
+                result = cv2.bitwise_and(self.frame, self.frame, mask=self.mask) # type: ignore
+            else:
+                result = self.frame
 
-            k = cv2.waitKey(1)
-            if k == ord('q'):
+            # Draw centers and lines
+            if len(self.centers) > 2:
+                for point in self.centers:
+                    cv2.circle(result, point, 5, (255, 0, 0), -1) # type: ignore
+
+                cv2.line(result, self.centers[0], self.centers[1], (0, 255, 0), 3) #type: ignore , linea adelante atras
+                cv2.line(result, self.centers[1], self.centers[2], (0, 0, 255), 3) #type: ignore , linea atras pelota
+
+            cv2.imshow("Video", self.frame)
+            cv2.imshow("Masks", result)
+
+            if cv2.waitKey(1) == ord('q'):
                 self.stop()
-            elif k == ord('u'):
-                self.masked_colors.pop()
+            time.sleep(0.01)
 
     def stop(self):
-        self.stopped = False
+        self.stopped = True
 
 class ProcessMasks:
     """Class that gets masks, centers and data for post-processing using a different thread"""
@@ -107,12 +120,14 @@ class ProcessMasks:
 
                 return mask1
 
+    # @nb.njit
     def get_masks(self):
         if self.frame is not None:
             hsv = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV)  # type: ignore
             self.masks = [cv2.inRange(hsv, np.array([i - 10, 100, 50]),
                 np.array([i + 10, 255, 255])) for i in self.masked_colors]
 
+    # @nb.njit
     def get_centers(self) -> list:
         if len(self.masks) > 0:
             centers = []
@@ -130,8 +145,10 @@ class ProcessMasks:
     def start(self):
         thread_main = threading.Thread(target=self.compute, args=(), daemon=True)
         thread_main.start()
+
         return self
 
+    # @nb.njit
     def compute(self):
         while not self.stopped:
             """ guia centros
@@ -141,7 +158,6 @@ class ProcessMasks:
             [3] -> adelante auto 2
             [4] -> atras auto 2
             """
-            # timestamp = time.time()
             if len(self.centers) > 2:
                 v1 = np.array(self.centers[0]) - np.array(self.centers[1]) # adelante - atras
                 v2 = np.array(self.centers[2]) - np.array(self.centers[1]) # pelota - atras
@@ -166,24 +182,29 @@ class ProcessMasks:
                     v3 = np.array(self.centers[0]) - np.array(self.centers[3])
                     norm_3 = np.linalg.norm(v3)
                     self.data['d2'] = float(norm_3)
-                
-                time.sleep(0.001)
-                # print(f"FPS: {int(1/(time.time() - timestamp))}")
 
     def stop(self):
         self.stopped = True
 
 if __name__ == "__main__":
-    capture = VideoCapture(0).start()
-    processor = ProcessMasks(capture.frame, capture.masked_colors).start()
+    video_getter = VideoGet(0).start()
+    video_shower = VideoShow(video_getter.frame).start()
+    processor = ProcessMasks(video_getter.frame, video_shower.masked_colors).start()
 
     while True:
-        if capture.stopped or processor.stopped:
-            capture.stop()
+        if video_getter.stopped or video_shower.stopped:
+            video_shower.stop()
+            video_getter.stop()
             processor.stop()
             break
 
-        processor.frame = capture.frame
-        processor.masked_colors = capture.masked_colors
-        capture.centers = processor.centers
-        # capture.mask = processor.get_joint_masks() # type: ignore
+        frame = video_getter.frame
+        processor.frame = frame
+
+        video_shower.frame = frame
+        video_shower.centers = processor.centers
+
+        processor.masked_colors = video_shower.masked_colors
+        video_shower.mask = processor.get_joint_masks()
+
+        time.sleep(0.01)
