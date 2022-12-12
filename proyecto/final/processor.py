@@ -5,84 +5,90 @@ https://nrsyed.com/20183/07/05/multithreading-with-opencv-python-to-improve-vide
 import cv2
 import threading
 import numpy as np
-import numba as nb
 import time
 
-class VideoGet:
-    """Get frame with dedicated thread"""
+class VideoCapture:
     def __init__(self, src=0):
         self.stream = cv2.VideoCapture(src)
         (self.grabbed, self.frame) = self.stream.read()
         self.stopped = False
 
-    def start(self):
-        thread = threading.Thread(target=self.get, args=(), daemon=True)
-        thread.start()
-        return self
-
-    def get(self):
-        while not self.stopped:
-            if not self.grabbed:
-                self.stop()
-
-            (self.grabbed, self.frame) = self.stream.read()
-            time.sleep(0.01)
-
-    def stop(self):
-        self.stopped = True
-
-class VideoShow:
-    """Class that continuously shows a frame using a different thread"""
-    def __init__(self, frame=None, mask=None):
-        self.frame = frame
-        self.mask = mask
-        self.stopped = False
         self.masked_colors = []
+        self.mask = None
         self.centers = []
+
+        self.screen_center = np.array(self.frame.shape[:2][::-1]) // 2
+        # # print(self.screen_center)
+        self.objective = "center"
 
     def mouse_callback(self, event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
             if self.frame is not None:
                 colors = self.frame[y, x]
                 hsv = cv2.cvtColor(np.array([[colors]], dtype=np.uint8), cv2.COLOR_BGR2HSV)
-                self.masked_colors.append(hsv[0][0][0])
+                self.masked_colors.append(hsv[0][0])
                 print("Color added to masked_colors")
+    
+    def get(self):
+        if not self.grabbed:
+            self.stop()
+        (self.grabbed, self.frame) = self.stream.read()
+    
+    def show(self):
+        if self.mask is not None:
+            result = cv2.bitwise_and(self.frame, self.frame, mask=self.mask) # type: ignore
+        else:
+            result = self.frame
+        frame = cv2.bitwise_and(self.frame, self.frame)
 
+        for point in self.centers:
+            cv2.circle(frame, point, 6, (255, 255, 255), -1) # type: ignore
+        
+        # if self.objective == self.screen_center:
+        #     cv2.circle(result, self.objective, 6, (255, 255, 255), -1)
+
+        # Draw centers and lines
+        if len(self.centers) > 2:
+            if self.objective == "center":
+                objetivo = self.screen_center
+            else:
+                objetivo = self.centers[2]
+            
+            cv2.line(frame, self.centers[0], self.centers[1], (255, 255, 255), 3) #type: ignore , linea adelante atras
+            cv2.line(frame, self.centers[1], objetivo, (255, 255, 255), 3) #type: ignore , linea atras objetivo
+
+        cv2.imshow("Video", frame)
+        cv2.imshow("Mask", result)
+    
     def start(self):
-        thread = threading.Thread(target=self.show, args=(), daemon=True)
+        thread = threading.Thread(target=self.main, args=(), daemon=True)
         thread.start()
         return self
-
-    def show(self):
+    
+    def main(self):
         cv2.namedWindow("Video")
         cv2.setMouseCallback("Video", self.mouse_callback)
-        while not self.stopped:
-            if self.mask is not None:
-                result = cv2.bitwise_and(self.frame, self.frame, mask=self.mask) # type: ignore
-            else:
-                result = self.frame
+        while True:
+            self.get()
+            self.show()
 
-            # Draw centers and lines
-            if len(self.centers) > 2:
-                for point in self.centers:
-                    cv2.circle(result, point, 5, (255, 0, 0), -1) # type: ignore
-
-                cv2.line(result, self.centers[0], self.centers[1], (0, 255, 0), 3) #type: ignore , linea adelante atras
-                cv2.line(result, self.centers[1], self.centers[2], (0, 0, 255), 3) #type: ignore , linea atras pelota
-
-            cv2.imshow("Video", self.frame)
-            cv2.imshow("Masks", result)
-
-            if cv2.waitKey(1) == ord('q'):
+            k = cv2.waitKey(1)
+            if k == ord('q'):
                 self.stop()
-            time.sleep(0.01)
+            elif k == ord('u'):
+                if len(self.masked_colors) > 0:
+                    self.masked_colors.pop()
+            elif k == ord('c'):
+                self.objective = "center"
+            elif k == ord('b'):
+                self.objective = "ball"
 
     def stop(self):
         self.stopped = True
 
 class ProcessMasks:
     """Class that gets masks, centers and data for post-processing using a different thread"""
-    def __init__(self, frame=None, masked_colors=[]):
+    def __init__(self, frame=np.zeros((480, 640, 3)), masked_colors=[]):
         self.__frame = frame
         self.masked_colors = masked_colors
         self.masks = []
@@ -96,6 +102,8 @@ class ProcessMasks:
         }
 
         self.centers = []
+        self.screen_center = np.array(self.frame.shape[:2][::-1]) // 2
+        self.objective = self.screen_center
 
     @property
     def frame(self):
@@ -106,35 +114,46 @@ class ProcessMasks:
         self.__frame = value
         self.get_masks()
         self.centers = self.get_centers()
+    
+    def set_objective(self, obj: str):
+        ant = np.copy(self.objective)
+        if obj == "center":
+            self.objective = self.screen_center
+        elif obj == "ball" and len(self.centers) > 2:
+            self.objective = self.centers[2]
+        else:
+            self.objective = self.screen_center
+
+        # if not np.array_equal(ant, self.objective):
+        #     print(f"Objetivo cambiado a: {self.objective}")
 
     def get_joint_masks(self):
             hsv = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV) # type: ignore
+            delta = np.array([10, 40, 40])
             if len(self.masked_colors) > 0:
-                mask1 = cv2.inRange(hsv, np.array([self.masked_colors[0] - 10, 100, 50]),
-                    np.array([self.masked_colors[0] + 10, 255, 255]))
+                mask1 = cv2.inRange(hsv, self.masked_colors[0] - delta, self.masked_colors[0] + delta)
                 if len(self.masked_colors) > 1:
                     for color in self.masked_colors[1:]:
-                        mask2 = cv2.inRange(hsv, np.array([color - 10, 100, 50]),
-                            np.array([color + 10, 255, 255]))
+                        mask2 = cv2.inRange(hsv, color - delta, color + delta)
                         mask1 = cv2.bitwise_or(mask1, mask2)
 
                 return mask1
 
-    # @nb.njit
     def get_masks(self):
         if self.frame is not None:
+            delta = np.array([10, 40, 40])
             hsv = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV)  # type: ignore
-            self.masks = [cv2.inRange(hsv, np.array([i - 10, 100, 50]),
-                np.array([i + 10, 255, 255])) for i in self.masked_colors]
+            self.masks = [cv2.inRange(hsv, i - delta, i + delta) for i in self.masked_colors]
 
-    # @nb.njit
     def get_centers(self) -> list:
         if len(self.masks) > 0:
             centers = []
             for mask in self.masks:
-                bilateral = cv2.bilateralFilter(mask, 9, 75, 75)
-                median = cv2.medianBlur(bilateral, 7)
-                M = cv2.moments(median)
+                # bilateral = cv2.bilateralFilter(mask, 9, 75, 75)
+                median = cv2.medianBlur(mask, 7)
+                blur = cv2.GaussianBlur(median, (5, 5), 0)
+                _, th3 = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                M = cv2.moments(th3)
                 if M["m00"] != 0:
                     cx = int(M["m10"] / M["m00"])
                     cy = int(M["m01"] / M["m00"])
@@ -145,10 +164,8 @@ class ProcessMasks:
     def start(self):
         thread_main = threading.Thread(target=self.compute, args=(), daemon=True)
         thread_main.start()
-
         return self
 
-    # @nb.njit
     def compute(self):
         while not self.stopped:
             """ guia centros
@@ -160,7 +177,7 @@ class ProcessMasks:
             """
             if len(self.centers) > 2:
                 v1 = np.array(self.centers[0]) - np.array(self.centers[1]) # adelante - atras
-                v2 = np.array(self.centers[2]) - np.array(self.centers[1]) # pelota - atras
+                v2 = np.array(self.objective) - np.array(self.centers[1]) # objetivo - atras
 
                 # norm_1 = np.linalg.norm(v1)
                 norm_2 = np.linalg.norm(v2)
@@ -182,29 +199,23 @@ class ProcessMasks:
                     v3 = np.array(self.centers[0]) - np.array(self.centers[3])
                     norm_3 = np.linalg.norm(v3)
                     self.data['d2'] = float(norm_3)
+                
+                time.sleep(0.001)
 
     def stop(self):
         self.stopped = True
 
 if __name__ == "__main__":
-    video_getter = VideoGet(0).start()
-    video_shower = VideoShow(video_getter.frame).start()
-    processor = ProcessMasks(video_getter.frame, video_shower.masked_colors).start()
+    capture = VideoCapture(0).start()
+    processor = ProcessMasks(capture.frame, capture.masked_colors).start()
 
     while True:
-        if video_getter.stopped or video_shower.stopped:
-            video_shower.stop()
-            video_getter.stop()
+        if capture.stopped or processor.stopped:
+            capture.stop()
             processor.stop()
             break
 
-        frame = video_getter.frame
-        processor.frame = frame
-
-        video_shower.frame = frame
-        video_shower.centers = processor.centers
-
-        processor.masked_colors = video_shower.masked_colors
-        video_shower.mask = processor.get_joint_masks()
-
-        time.sleep(0.01)
+        processor.frame = capture.frame
+        processor.masked_colors = capture.masked_colors
+        capture.centers = processor.centers
+        # capture.mask = processor.get_joint_masks() # type: ignore
