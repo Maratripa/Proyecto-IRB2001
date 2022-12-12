@@ -16,9 +16,9 @@ class Robot:
         a_a2 = self.data['a4']
 
         if self.state == "def_1":
-            if d_a1 < 2 * dist_aa:
-                m0 = 0.3 * angle * sign(angle)
-                m1 = -0.3 * angle * sign(angle)
+            if d_a1 < 2.5 * dist_aa:
+                m0 = 0.3 * angle
+                m1 = -0.3 * angle
             else:
                 if abs(a_a1) > 90:
                     m0 = 0.3 * a_a1 * sign(a_a1)
@@ -33,42 +33,42 @@ class Robot:
                     m0 = 0.2 * d_a1 + 0.2 * a_a1 * sign(a_a1)
                     m1 = 0.2 * d_a1 - 0.2 * a_a1 * sign(a_a1)
         elif self.state == "def_3":
-            if dist < 5 * dist_aa:
+            if dist < 6 * dist_aa:
                 if abs(angle) > 90:
-                    m0 = 0.3 * angle * sign(angle)
-                    m1 = -0.3 * angle * sign(angle)
+                    m0 = 0.3 * angle
+                    m1 = -0.3 * angle
                 elif abs(angle) > 30:
-                    m0 = 0.1 * dist + 0.3 * angle * sign(angle)
-                    m1 = 0.1 * dist - 0.3 * angle * sign(angle)
+                    m0 = 0.1 * dist + 0.3 * angle
+                    m1 = 0.1 * dist - 0.3 * angle
                 elif abs(angle) > 15:
-                    m0 = 0.15 * dist + 0.2 * angle * sign(angle)
-                    m1 = 0.15 * dist - 0.2 * angle * sign(angle)
+                    m0 = 0.15 * dist + 0.2 * angle
+                    m1 = 0.15 * dist - 0.2 * angle
                 else:
-                    m0 = 0.2 * dist + 0.2 * angle * sign(angle)
-                    m1 = 0.2 * dist - 0.2 * angle * sign(angle)
+                    m0 = 0.2 * dist + 0.2 * angle
+                    m1 = 0.2 * dist - 0.2 * angle
             else:
-                m0 = 0.3 * angle * sign(angle)
-                m1 = -0.3 * angle * sign(angle)
+                m0 = 0.3 * angle
+                m1 = -0.3 * angle
         else:
             if abs(angle) > 90:
-                m0 = 0.3 * angle * sign(angle)
-                m1 = -0.3 * angle * sign(angle)
+                m0 = 0.3 * angle
+                m1 = -0.3 * angle
             elif abs(angle) > 30:
-                m0 = 0.1 * dist + 0.3 * angle * sign(angle)
-                m1 = 0.1 * dist - 0.3 * angle * sign(angle)
+                m0 = 0.1 * dist + 0.3 * angle
+                m1 = 0.1 * dist - 0.3 * angle
             elif abs(angle) > 15:
-                m0 = 0.15 * dist + 0.2 * angle * sign(angle)
-                m1 = 0.15 * dist - 0.2 * angle * sign(angle)
+                m0 = 0.15 * dist + 0.2 * angle
+                m1 = 0.15 * dist - 0.2 * angle
             else:
-                if dist < 2 * dist_aa and self.state == "no tocar":
+                if dist < 2.5 * dist_aa and self.state == "no tocar":
                     m0 = 0
                     m1 = 0
-                elif dist < 2 * dist_aa and self.state == "line":
-                    m0 = 60
-                    m1 = 60
+                elif dist < 2.5 * dist_aa and self.state == "line":
+                    m0 = 50
+                    m1 = 50
                 else:
-                    m0 = 0.2 * dist + 0.2 * angle * sign(angle)
-                    m1 = 0.2 * dist - 0.2 * angle * sign(angle)
+                    m0 = 0.2 * dist + 0.2 * angle
+                    m1 = 0.2 * dist - 0.2 * angle
         
         print(f"Angulo: {angle}\t|\tD1: {dist}\t|\tm0: {m0}\t|\tm1: {m1}")
         

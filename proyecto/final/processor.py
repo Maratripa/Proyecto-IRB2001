@@ -112,6 +112,7 @@ class ProcessMasks:
         self.stopped = False
 
         self.data = {
+            'd0': 0.0,
             'a': 0.0,
             'd1': 0.0,
             'd2': 0.0,
