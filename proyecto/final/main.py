@@ -28,7 +28,6 @@ class SerialCom():
 
                 self.serial.write(str.encode(f"{m0}:{m1};"))
 
-
                 time.sleep(0.06)
 
 def main(src):
@@ -43,14 +42,20 @@ def main(src):
             capture.stop()
             processor.stop()
             break
+
+        processor.set_objective(capture.state)
+        com.robot.state = capture.state
+        if len(processor.arcos) < 2:
+            processor.arcos = capture.arcos
         
         processor.frame = capture.frame
         processor.masked_colors = capture.masked_colors
-        processor.set_objective(capture.objective)
+        
         capture.centers = processor.centers
         capture.mask = processor.get_joint_masks() # type: ignore
 
         com.robot.data = processor.data
+
 
 
 if __name__ == "__main__":

@@ -17,17 +17,21 @@ class VideoCapture:
         self.mask = None
         self.centers = []
 
+        self.arcos = []
+
         self.screen_center = np.array(self.frame.shape[:2][::-1]) // 2
         # # print(self.screen_center)
-        self.objective = "center"
+        self.state = "center"
 
     def mouse_callback(self, event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
-            if self.frame is not None:
+            if self.frame is not None and len(self.masked_colors) < 5:
                 colors = self.frame[y, x]
                 hsv = cv2.cvtColor(np.array([[colors]], dtype=np.uint8), cv2.COLOR_BGR2HSV)
                 self.masked_colors.append(hsv[0][0])
                 print("Color added to masked_colors")
+            elif self.frame is not None and len(self.masked_colors) >= 5 and len(self.arcos) < 2:
+                self.arcos.append(np.array([x, y]))
     
     def get(self):
         if not self.grabbed:
@@ -46,10 +50,12 @@ class VideoCapture:
         
         # if self.objective == self.screen_center:
         #     cv2.circle(result, self.objective, 6, (255, 255, 255), -1)
+        for arco in self.arcos:
+            cv2.circle(frame, arco, 5, (255, 0, 0), -1)
 
         # Draw centers and lines
         if len(self.centers) > 2:
-            if self.objective == "center":
+            if self.state == "center":
                 objetivo = self.screen_center
             else:
                 objetivo = self.centers[2]
@@ -79,9 +85,19 @@ class VideoCapture:
                 if len(self.masked_colors) > 0:
                     self.masked_colors.pop()
             elif k == ord('c'):
-                self.objective = "center"
+                self.state = "center"
             elif k == ord('b'):
-                self.objective = "ball"
+                self.state = "ball"
+            elif k == ord('n'):
+                self.state = "no tocar"
+            elif k == ord('l'):
+                self.state = "line"
+            elif k == ord('d'):
+                self.state = "def_1"
+            elif k == ord('f'):
+                self.state = "def_2"
+            elif k == ord('g'):
+                self.state = "def_3"
 
     def stop(self):
         self.stopped = True
@@ -98,12 +114,18 @@ class ProcessMasks:
         self.data = {
             'a': 0.0,
             'd1': 0.0,
-            'd2': 0.0
+            'd2': 0.0,
+            'd3': 0.0,
+            'd4': 0.0,
+            'a3': 0.0,
+            'a4': 0.0
         }
 
         self.centers = []
         self.screen_center = np.array(self.frame.shape[:2][::-1]) // 2
         self.objective = self.screen_center
+
+        self.arcos = []
 
     @property
     def frame(self):
@@ -116,16 +138,14 @@ class ProcessMasks:
         self.centers = self.get_centers()
     
     def set_objective(self, obj: str):
-        ant = np.copy(self.objective)
         if obj == "center":
             self.objective = self.screen_center
-        elif obj == "ball" and len(self.centers) > 2:
+        elif obj in ("ball", "no tocar", "line", "def_1", "def_3") and len(self.centers) > 2:
             self.objective = self.centers[2]
+        elif obj == "def_2" and len(self.centers) > 2 and len(self.arcos) > 0:
+            self.objective = (self.centers[2] + self.arcos[0]) // 2
         else:
             self.objective = self.screen_center
-
-        # if not np.array_equal(ant, self.objective):
-        #     print(f"Objetivo cambiado a: {self.objective}")
 
     def get_joint_masks(self):
             hsv = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV) # type: ignore
@@ -179,7 +199,7 @@ class ProcessMasks:
                 v1 = np.array(self.centers[0]) - np.array(self.centers[1]) # adelante - atras
                 v2 = np.array(self.objective) - np.array(self.centers[1]) # objetivo - atras
 
-                # norm_1 = np.linalg.norm(v1)
+                norm_1 = np.linalg.norm(v1)
                 norm_2 = np.linalg.norm(v2)
 
                 atan1 = np.arctan2(v1[1], v1[0]) # a atras
@@ -193,12 +213,23 @@ class ProcessMasks:
 
                 angulo = angulo * 180 / np.pi
                 self.data['a'] = float(angulo)
+                self.data['d0'] = float(norm_1)
                 self.data['d1'] = float(norm_2)
 
                 if len(self.centers) > 4:
                     v3 = np.array(self.centers[0]) - np.array(self.centers[3])
                     norm_3 = np.linalg.norm(v3)
                     self.data['d2'] = float(norm_3)
+                
+                for i, arco in enumerate(self.arcos):
+                    v = arco - np.array(self.centers[1])
+
+                    atan_2 = np.arctan2(v[1], v[0])
+
+                    ang = atan_2 - atan1
+                    norm = np.linalg.norm(v)
+                    self.data[f"d{3+i}"] = float(norm)
+                    self.data[f"a{3+i}"] = float(ang)
                 
                 time.sleep(0.001)
 
