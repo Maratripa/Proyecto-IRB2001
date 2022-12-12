@@ -44,15 +44,15 @@ def main(src):
             capture.stop()
             processor.stop()
             break
-
+        
         processor.frame = capture.frame
         processor.masked_colors = capture.masked_colors
+        processor.set_objective(capture.objective)
         capture.centers = processor.centers
-        capture.mask = processor.get_joint_masks() # type: ignore
+        # capture.mask = processor.get_joint_masks() # type: ignore
 
         com.data = processor.data
 
 if __name__ == "__main__":
     source = int(sys.argv[1])
-    print("starting")
     main(source)

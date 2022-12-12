@@ -17,6 +17,10 @@ class VideoCapture:
         self.mask = None
         self.centers = []
 
+        self.screen_center = np.array(self.frame.shape[:2][::-1]) // 2
+        # # print(self.screen_center)
+        self.objective = "center"
+
     def mouse_callback(self, event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
             if self.frame is not None:
@@ -31,21 +35,29 @@ class VideoCapture:
         (self.grabbed, self.frame) = self.stream.read()
     
     def show(self):
-        if self.mask is not None:
-                result = cv2.bitwise_and(self.frame, self.frame, mask=self.mask) # type: ignore
-        else:
-            result = self.frame
+        # if self.mask is not None:
+        #         result = cv2.bitwise_and(self.frame, self.frame, mask=self.mask) # type: ignore
+        # else:
+        #     result = self.frame
+        result = cv2.bitwise_and(self.frame, self.frame)
+
+        for point in self.centers:
+            cv2.circle(result, point, 6, (255, 255, 255), -1) # type: ignore
+        
+        # if self.objective == self.screen_center:
+        #     cv2.circle(result, self.objective, 6, (255, 255, 255), -1)
 
         # Draw centers and lines
         if len(self.centers) > 2:
-            for point in self.centers:
-                cv2.circle(result, point, 5, (255, 0, 0), -1) # type: ignore
+            if self.objective == "center":
+                objetivo = self.screen_center
+            else:
+                objetivo = self.centers[2]
+            
+            cv2.line(result, self.centers[0], self.centers[1], (255, 255, 255), 3) #type: ignore , linea adelante atras
+            cv2.line(result, self.centers[1], objetivo, (255, 255, 255), 3) #type: ignore , linea atras objetivo
 
-            cv2.line(result, self.centers[0], self.centers[1], (0, 255, 0), 3) #type: ignore , linea adelante atras
-            cv2.line(result, self.centers[1], self.centers[2], (0, 0, 255), 3) #type: ignore , linea atras pelota
-
-        cv2.imshow("Video", self.frame)
-        cv2.imshow("Masks", result)
+        cv2.imshow("Video", result)
     
     def start(self):
         thread = threading.Thread(target=self.main, args=(), daemon=True)
@@ -64,15 +76,17 @@ class VideoCapture:
                 self.stop()
             elif k == ord('u'):
                 self.masked_colors.pop()
-
-            time.sleep(0.01)
+            elif k == ord('c'):
+                self.objective = "centro"
+            elif k == ord('b'):
+                self.objective = "ball"
 
     def stop(self):
-        self.stopped = False
+        self.stopped = True
 
 class ProcessMasks:
     """Class that gets masks, centers and data for post-processing using a different thread"""
-    def __init__(self, frame=None, masked_colors=[]):
+    def __init__(self, frame=np.zeros((480, 640, 3)), masked_colors=[]):
         self.__frame = frame
         self.masked_colors = masked_colors
         self.masks = []
@@ -86,6 +100,8 @@ class ProcessMasks:
         }
 
         self.centers = []
+        self.screen_center = np.array(self.frame.shape[:2][::-1]) // 2
+        self.objective = self.screen_center
 
     @property
     def frame(self):
@@ -96,6 +112,18 @@ class ProcessMasks:
         self.__frame = value
         self.get_masks()
         self.centers = self.get_centers()
+    
+    def set_objective(self, obj: str):
+        ant = np.copy(self.objective)
+        if obj == "center":
+            self.objective = self.screen_center
+        elif obj == "ball" and len(self.centers) > 2:
+            self.objective = self.centers[2]
+        else:
+            self.objective = self.screen_center
+
+        if not np.array_equal(ant, self.objective):
+            print(f"Objetivo cambiado a: {self.objective}")
 
     def get_joint_masks(self):
             hsv = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV) # type: ignore
@@ -148,7 +176,7 @@ class ProcessMasks:
             """
             if len(self.centers) > 2:
                 v1 = np.array(self.centers[0]) - np.array(self.centers[1]) # adelante - atras
-                v2 = np.array(self.centers[2]) - np.array(self.centers[1]) # pelota - atras
+                v2 = np.array(self.objective) - np.array(self.centers[1]) # objetivo - atras
 
                 # norm_1 = np.linalg.norm(v1)
                 norm_2 = np.linalg.norm(v2)
@@ -170,6 +198,8 @@ class ProcessMasks:
                     v3 = np.array(self.centers[0]) - np.array(self.centers[3])
                     norm_3 = np.linalg.norm(v3)
                     self.data['d2'] = float(norm_3)
+                
+                time.sleep(0.001)
 
     def stop(self):
         self.stopped = True
@@ -187,4 +217,4 @@ if __name__ == "__main__":
         processor.frame = capture.frame
         processor.masked_colors = capture.masked_colors
         capture.centers = processor.centers
-        capture.mask = processor.get_joint_masks() # type: ignore
+        # capture.mask = processor.get_joint_masks() # type: ignore
