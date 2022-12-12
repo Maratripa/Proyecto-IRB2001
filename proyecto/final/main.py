@@ -28,9 +28,8 @@ class SerialCom():
 
                 self.serial.write(str.encode(f"{m0}:{m1};"))
 
-                # print(f"Angulo: {self.data['a']}\t|\tD1: {self.data['d1']}\t|\tD2: {self.data['d2']}")
 
-                time.sleep(0.01)
+                time.sleep(0.06)
 
 def main(src):
     capture = proc.VideoCapture(src).start()
@@ -49,7 +48,7 @@ def main(src):
         processor.masked_colors = capture.masked_colors
         processor.set_objective(capture.objective)
         capture.centers = processor.centers
-        # capture.mask = processor.get_joint_masks() # type: ignore
+        capture.mask = processor.get_joint_masks() # type: ignore
 
         com.robot.data = processor.data
 

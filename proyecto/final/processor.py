@@ -26,7 +26,7 @@ class VideoCapture:
             if self.frame is not None:
                 colors = self.frame[y, x]
                 hsv = cv2.cvtColor(np.array([[colors]], dtype=np.uint8), cv2.COLOR_BGR2HSV)
-                self.masked_colors.append(hsv[0][0][0])
+                self.masked_colors.append(hsv[0][0])
                 print("Color added to masked_colors")
     
     def get(self):
@@ -35,14 +35,14 @@ class VideoCapture:
         (self.grabbed, self.frame) = self.stream.read()
     
     def show(self):
-        # if self.mask is not None:
-        #         result = cv2.bitwise_and(self.frame, self.frame, mask=self.mask) # type: ignore
-        # else:
-        #     result = self.frame
-        result = cv2.bitwise_and(self.frame, self.frame)
+        if self.mask is not None:
+            result = cv2.bitwise_and(self.frame, self.frame, mask=self.mask) # type: ignore
+        else:
+            result = self.frame
+        frame = cv2.bitwise_and(self.frame, self.frame)
 
         for point in self.centers:
-            cv2.circle(result, point, 6, (255, 255, 255), -1) # type: ignore
+            cv2.circle(frame, point, 6, (255, 255, 255), -1) # type: ignore
         
         # if self.objective == self.screen_center:
         #     cv2.circle(result, self.objective, 6, (255, 255, 255), -1)
@@ -54,10 +54,11 @@ class VideoCapture:
             else:
                 objetivo = self.centers[2]
             
-            cv2.line(result, self.centers[0], self.centers[1], (255, 255, 255), 3) #type: ignore , linea adelante atras
-            cv2.line(result, self.centers[1], objetivo, (255, 255, 255), 3) #type: ignore , linea atras objetivo
+            cv2.line(frame, self.centers[0], self.centers[1], (255, 255, 255), 3) #type: ignore , linea adelante atras
+            cv2.line(frame, self.centers[1], objetivo, (255, 255, 255), 3) #type: ignore , linea atras objetivo
 
-        cv2.imshow("Video", result)
+        cv2.imshow("Video", frame)
+        cv2.imshow("Mask", result)
     
     def start(self):
         thread = threading.Thread(target=self.main, args=(), daemon=True)
@@ -75,9 +76,10 @@ class VideoCapture:
             if k == ord('q'):
                 self.stop()
             elif k == ord('u'):
-                self.masked_colors.pop()
+                if len(self.masked_colors) > 0:
+                    self.masked_colors.pop()
             elif k == ord('c'):
-                self.objective = "centro"
+                self.objective = "center"
             elif k == ord('b'):
                 self.objective = "ball"
 
@@ -122,27 +124,26 @@ class ProcessMasks:
         else:
             self.objective = self.screen_center
 
-        if not np.array_equal(ant, self.objective):
-            print(f"Objetivo cambiado a: {self.objective}")
+        # if not np.array_equal(ant, self.objective):
+        #     print(f"Objetivo cambiado a: {self.objective}")
 
     def get_joint_masks(self):
             hsv = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV) # type: ignore
+            delta = np.array([10, 40, 40])
             if len(self.masked_colors) > 0:
-                mask1 = cv2.inRange(hsv, np.array([self.masked_colors[0] - 10, 100, 50]),
-                    np.array([self.masked_colors[0] + 10, 255, 255]))
+                mask1 = cv2.inRange(hsv, self.masked_colors[0] - delta, self.masked_colors[0] + delta)
                 if len(self.masked_colors) > 1:
                     for color in self.masked_colors[1:]:
-                        mask2 = cv2.inRange(hsv, np.array([color - 10, 100, 50]),
-                            np.array([color + 10, 255, 255]))
+                        mask2 = cv2.inRange(hsv, color - delta, color + delta)
                         mask1 = cv2.bitwise_or(mask1, mask2)
 
                 return mask1
 
     def get_masks(self):
         if self.frame is not None:
+            delta = np.array([10, 40, 40])
             hsv = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV)  # type: ignore
-            self.masks = [cv2.inRange(hsv, np.array([i - 10, 100, 50]),
-                np.array([i + 10, 255, 255])) for i in self.masked_colors]
+            self.masks = [cv2.inRange(hsv, i - delta, i + delta) for i in self.masked_colors]
 
     def get_centers(self) -> list:
         if len(self.masks) > 0:
