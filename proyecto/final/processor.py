@@ -7,6 +7,43 @@ import threading
 import numpy as np
 import time
 
+def arctan_3p(p1, p2, p3):
+    #      p1
+    #      *
+    #  p2.
+    #  *   a)       p3
+    #               *
+    v_1_2 = np.array(p1) - np.array(p2)
+    a_1_2 = np.arctan2(v_1_2[1], v_1_2[0])
+
+    v_3_2 = np.array(p3) - np.array(p2)
+    a_3_2 = np.arctan2(v_3_2[1], v_3_2[0])
+
+    return a_1_2 - a_3_2
+
+def get_proyection(arco, pelota, pos_robot, angulo_deg, distancia):
+    angulo = np.deg2rad(angulo_deg)
+
+    vec_arco_pelota = np.array(arco) - np.array(pelota)
+    angulo_arco_pelota = np.arctan2(vec_arco_pelota[1], vec_arco_pelota[0])
+
+    x1 = pelota[0] + distancia * np.cos(angulo_arco_pelota + angulo)
+    y1 = pelota[1] + distancia * np.sin(angulo_arco_pelota + angulo)
+
+    x2 = pelota[0] + distancia * np.cos(angulo_arco_pelota - angulo)
+    y2 = pelota[1] + distancia * np.sin(angulo_arco_pelota - angulo)
+
+    pos1 = np.array((x1, y1))
+    pos2 = np.array((x2, y2))
+
+    dist1 = np.linalg.norm(np.array(pos_robot) - pos1)
+    dist2 = np.linalg.norm(np.array(pos_robot) - pos2)
+
+    if dist1 < dist2:
+        return dist1
+    else:
+        return dist2
+
 class VideoCapture:
     def __init__(self, src=0):
         self.stream = cv2.VideoCapture(src)
@@ -19,9 +56,12 @@ class VideoCapture:
 
         self.arcos = []
 
-        self.screen_center = np.array(self.frame.shape[:2][::-1]) // 2
+        if self.frame is None:
+            self.screen_center = np.array((320, 240))
+        else:
+            self.screen_center = np.array(self.frame.shape[:2][::-1]) // 2
         # # print(self.screen_center)
-        self.state = "center"
+        self.state = "stop"
 
     def mouse_callback(self, event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
@@ -57,11 +97,15 @@ class VideoCapture:
         if len(self.centers) > 2:
             if self.state == "center":
                 objetivo = self.screen_center
+            elif self.state == "def_2":
+                objetivo = (self.centers[2] + self.arcos[0]) // 2
             else:
                 objetivo = self.centers[2]
             
             cv2.line(frame, self.centers[0], self.centers[1], (255, 255, 255), 3) #type: ignore , linea adelante atras
             cv2.line(frame, self.centers[1], objetivo, (255, 255, 255), 3) #type: ignore , linea atras objetivo
+        
+            cv2.circle(frame, objetivo, 5, (0, 0, 255), -1)
 
         cv2.imshow("Video", frame)
         cv2.imshow("Mask", result)
@@ -98,6 +142,13 @@ class VideoCapture:
                 self.state = "def_2"
             elif k == ord('g'):
                 self.state = "def_3"
+            elif k == ord('a'):
+                self.state = "atk_1"
+            elif k == ord('s'):
+                self.state = "atk_2"
+            elif k == ord('h'):
+                self.state = "stop"
+            
 
     def stop(self):
         self.stopped = True
@@ -119,12 +170,15 @@ class ProcessMasks:
             'd3': 0.0,
             'd4': 0.0,
             'a3': 0.0,
-            'a4': 0.0
+            'a4': 0.0,
+            'ao': 0.0,
+            'do': 0.0
         }
 
         self.centers = []
         self.screen_center = np.array(self.frame.shape[:2][::-1]) // 2
         self.objective = self.screen_center
+        self.objective2 = None
 
         self.arcos = []
 
@@ -141,12 +195,19 @@ class ProcessMasks:
     def set_objective(self, obj: str):
         if obj == "center":
             self.objective = self.screen_center
+            self.objective2 = None
         elif obj in ("ball", "no tocar", "line", "def_1", "def_3") and len(self.centers) > 2:
             self.objective = self.centers[2]
+            self.objective2 = None
         elif obj == "def_2" and len(self.centers) > 2 and len(self.arcos) > 0:
             self.objective = (self.centers[2] + self.arcos[0]) // 2
+            self.objective2 = None
+        elif obj == "atk_1":
+            self.objective = self.centers[2]
+            self.objective2 = get_proyection(self.arcos[1], self.centers[2], self.centers[1], 180, 4 * self.data['d0'])
         else:
             self.objective = self.screen_center
+            self.objective2 = None
 
     def get_joint_masks(self):
             hsv = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV) # type: ignore
@@ -200,6 +261,8 @@ class ProcessMasks:
                 v1 = np.array(self.centers[0]) - np.array(self.centers[1]) # adelante - atras
                 v2 = np.array(self.objective) - np.array(self.centers[1]) # objetivo - atras
 
+                
+
                 norm_1 = np.linalg.norm(v1)
                 norm_2 = np.linalg.norm(v2)
 
@@ -213,6 +276,24 @@ class ProcessMasks:
                     angulo += 2 * np.pi
 
                 angulo = angulo * 180 / np.pi
+
+
+                if self.objective2 is not None:
+                    vo = np.array(self.objective2) - np.array(self.centers[1])
+                    norm_o = np.linalg.norm(vo)
+                    atan_o = np.arctan2(vo[1], vo[0])
+
+                    ang_o = atan_o - atan1
+                    if ang_o > np.pi:
+                        ang_o -= 2 * np.pi
+                    elif ang_o < -np.pi:
+                        ang_o += 2 * np.pi
+
+                    ang_o = ang_o * 180 / np.pi
+
+                    self.data['ao'] = float(ang_o)
+                    self.data['do'] = float(norm_o)
+
                 self.data['a'] = float(angulo)
                 self.data['d0'] = float(norm_1)
                 self.data['d1'] = float(norm_2)
@@ -228,6 +309,12 @@ class ProcessMasks:
                     atan_2 = np.arctan2(v[1], v[0])
 
                     ang = atan_2 - atan1
+                    if ang > np.pi:
+                        ang -= 2 * np.pi
+                    elif ang < -np.pi:
+                        ang += 2 * np.pi
+                    
+                    ang = ang * 180 / np.pi
                     norm = np.linalg.norm(v)
                     self.data[f"d{3+i}"] = float(norm)
                     self.data[f"a{3+i}"] = float(ang)
