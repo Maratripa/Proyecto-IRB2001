@@ -204,6 +204,9 @@ class ProcessMasks:
             self.objective2 = None
         elif obj == "atk_1":
             self.objective = self.centers[2]
+            self.objective2 = None
+        elif obj == "atk_2":
+            self.objective = self.centers[2]
             self.objective2 = get_proyection(self.arcos[1], self.centers[2], self.centers[1], 180, 4 * self.data['d0'])
         else:
             self.objective = self.screen_center

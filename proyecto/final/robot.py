@@ -60,8 +60,8 @@ class Robot:
                     m0 = 0.15 * d_a1 + 0.2 * a_a1
                     m1 = 0.15 * d_a1 - 0.2 * a_a1
                 else:
-                    m0 = 0.2 * d_a1 + 0.2 * a_a1
-                    m1 = 0.2 * d_a1 - 0.2 * a_a1
+                    m0 = 0.25 * d_a1 + 0.2 * a_a1
+                    m1 = 0.25 * d_a1 - 0.2 * a_a1
         
         elif self.state == "def_2":
             if dist > 2 * dist_aa:
@@ -75,35 +75,35 @@ class Robot:
                     m0 = 0.15 * dist + 0.2 * angle
                     m1 = 0.15 * dist - 0.2 * angle
                 else:
-                    m0 = 0.2 * dist + 0.2 * angle
-                    m1 = 0.2 * dist - 0.2 * angle
+                    m0 = 0.25 * dist + 0.2 * angle
+                    m1 = 0.25 * dist - 0.2 * angle
             else:
-                m0 = 0.3 * angle
-                m1 = -0.3 * angle
+                m0 = 0.5 * angle
+                m1 = -0.5 * angle
             
         elif self.state == "def_3":
-            if dist < 12 * dist_aa:
+            if dist < 10 * dist_aa:
                 if abs(angle) > 90:
                     m0 = 1 * angle
                     m1 = -1 * angle
                 elif abs(angle) > 30:
-                    m0 = 0.5 * dist + 0.3 * angle
-                    m1 = 0.5 * dist - 0.3 * angle
+                    m0 = 0.5 * dist + 1 * angle
+                    m1 = 0.5 * dist - 1 * angle
                 elif abs(angle) > 15:
-                    m0 = 0.6 * dist + 0.4 * angle
-                    m1 = 0.6 * dist - 0.4 * angle
+                    m0 = 0.6 * dist + 1 * angle
+                    m1 = 0.6 * dist - 1 * angle
                 else:
-                    m0 = 0.7 * dist + 0.5 * angle
-                    m1 = 0.7 * dist - 0.5 * angle
+                    m0 = 0.7 * dist + 1 * angle
+                    m1 = 0.7 * dist - 1 * angle
             else:
                 m0 = 1 * angle
                 m1 = -1 * angle
         
         elif self.state == "atk_1":
-            if dist < 2 * dist_aa:
+            if dist < 2.3 * dist_aa:
                 if abs(a_a2) > 90:
-                    m0 = 0.3 * a_a2
-                    m1 = -0.3 * a_a2
+                    m0 = 0.2 * a_a2
+                    m1 = -0.2 * a_a2
                 elif abs(a_a2) > 30:
                     m0 = 0.1 * d_a2 + 0.3 * a_a2
                     m1 = 0.1 * d_a2 - 0.3 * a_a2
@@ -111,8 +111,8 @@ class Robot:
                     m0 = 0.15 * d_a2 + 0.2 * a_a2
                     m1 = 0.15 * d_a2 - 0.2 * a_a2
                 else:
-                    m0 = 0.3 * d_a2 + 0.2 * a_a2
-                    m1 = 0.3 * d_a2 - 0.2 * a_a2
+                    m0 = 0.2 * d_a2 + 0.2 * a_a2
+                    m1 = 0.2 * d_a2 - 0.2 * a_a2
             else:
                 if abs(angle) > 90:
                     m0 = 0.3 * angle
@@ -126,6 +126,32 @@ class Robot:
                 else:
                     m0 = 0.2 * dist + 0.2 * angle
                     m1 = 0.2 * dist - 0.2 * angle
+        
+        elif self.state == "atk_2":
+            if do > 2 * dist_aa:
+                if abs(ao) > 90:
+                    m0 = 0.3 * ao
+                    m1 = -0.3 * ao
+                elif abs(ao) > 30:
+                    m0 = 0.1 * do + 0.3 * ao
+                    m1 = 0.1 * do - 0.3 * ao
+                elif abs(ao) > 15:
+                    m0 = 0.15 * do + 0.2 * ao
+                    m1 = 0.15 * do - 0.2 * ao
+                else:
+                    m0 = 0.25 * do + 0.2 * ao
+                    m1 = 0.25 * do - 0.2 * ao
+            else:
+                if abs(angle) < 5:
+                    if dist < 2.4 * dist_aa:
+                        m0, m1 = 30, 30
+                        self.state = "stop"
+                    else:
+                        m0 = 60 + 0.1 * angle
+                        m1 = 60 - 0.1 * angle
+                else:
+                    m0 = 0.3 * angle
+                    m1 = -0.3 * angle
         
         else:
             if abs(angle) > 90:
@@ -147,6 +173,10 @@ class Robot:
                 else:
                     m0 = 0.2 * dist + 0.2 * angle
                     m1 = 0.2 * dist - 0.2 * angle
+            
+            if self.state == "center":
+                if dist < 2.3 * dist_aa:
+                    m0, m1 = 0, 0
         
         print(f"Angulo: {angle}\t|\tD1: {dist}\t|\tm0: {m0}\t|\tm1: {m1}\t|\tState: {self.state}")
         
