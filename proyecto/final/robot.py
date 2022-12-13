@@ -1,4 +1,5 @@
 import numpy as np
+import time
 
 def sign(num):
     return 1 if num >= 0 else -1
@@ -30,6 +31,14 @@ class Robot:
     def __init__(self, data = {}):
         self.data = data
         self.state = "stop"
+        self.aux_state = False
+        self.aiuda = False
+        self.aiuda2 = False
+
+        self.no_tocar_listo = False
+
+        self.timeado = False
+        self.t_i = 0
 
     def move_to_obj(self) -> tuple[float, float]:
         angle = self.data['a'] # type: float
@@ -82,19 +91,16 @@ class Robot:
                 m1 = -0.5 * angle
             
         elif self.state == "def_3":
-            if dist < 10 * dist_aa:
-                if abs(angle) > 90:
+            if dist < 5 * dist_aa:
+                if abs(angle) > 45:
                     m0 = 1 * angle
                     m1 = -1 * angle
-                elif abs(angle) > 30:
+                elif abs(angle) > 15:
                     m0 = 0.5 * dist + 1 * angle
                     m1 = 0.5 * dist - 1 * angle
-                elif abs(angle) > 15:
-                    m0 = 0.6 * dist + 1 * angle
-                    m1 = 0.6 * dist - 1 * angle
                 else:
-                    m0 = 0.7 * dist + 1 * angle
-                    m1 = 0.7 * dist - 1 * angle
+                    m0 = 0.8 * dist + 1 * angle
+                    m1 = 0.8 * dist - 1 * angle
             else:
                 m0 = 1 * angle
                 m1 = -1 * angle
@@ -128,7 +134,7 @@ class Robot:
                     m1 = 0.2 * dist - 0.2 * angle
         
         elif self.state == "atk_2":
-            if do > 2 * dist_aa:
+            if do > 2 * dist_aa and not self.aux_state:
                 if abs(ao) > 90:
                     m0 = 0.3 * ao
                     m1 = -0.3 * ao
@@ -142,10 +148,12 @@ class Robot:
                     m0 = 0.25 * do + 0.2 * ao
                     m1 = 0.25 * do - 0.2 * ao
             else:
+                self.aux_state = True
                 if abs(angle) < 5:
                     if dist < 2.4 * dist_aa:
                         m0, m1 = 30, 30
                         self.state = "stop"
+                        self.aux_state = False
                     else:
                         m0 = 60 + 0.1 * angle
                         m1 = 60 - 0.1 * angle
@@ -153,26 +161,61 @@ class Robot:
                     m0 = 0.3 * angle
                     m1 = -0.3 * angle
         
+        elif self.state == "atk_x":
+            if not self.no_tocar_listo:
+                if abs(angle) > 90:
+                    m0 = 0.3 * angle
+                    m1 = -0.3 * angle
+                elif abs(angle) > 30:
+                    m0 = 0.1 * dist + 0.3 * angle
+                    m1 = 0.1 * dist - 0.3 * angle
+                elif abs(angle) > 15:
+                    m0 = 0.15 * dist + 0.4 * angle
+                    m1 = 0.15 * dist - 0.4 * angle
+                else:
+                    if dist < 2.5 * dist_aa:
+                        m0 = 0
+                        m1 = 0
+                        self.no_tocar_listo = True
+                    else:
+                        m0 = 0.2 * dist + 0.2 * angle
+                        m1 = 0.2 * dist - 0.2 * angle
+            else:
+                if abs(a_a2) > 4:
+                    m0 = 0.4 * a_a2
+                    m1 = -0.4 * a_a2
+                else:
+                    if not self.timeado:
+                        self.t_i = time.time()
+                        m0, m1 = 100, 100
+                        self.timeado = True
+                    else:
+                        if time.time() - self.t_i > 0.5:
+                            m0, m1 = 0, 0
+                            self.state = "stop"
+                        else:
+                            m0, m1 = 100, 100
+                    
         else:
             if abs(angle) > 90:
                 m0 = 0.3 * angle
                 m1 = -0.3 * angle
             elif abs(angle) > 30:
-                m0 = 0.1 * dist + 0.3 * angle
-                m1 = 0.1 * dist - 0.3 * angle
+                m0 = 0.3 * dist + 0.3 * angle
+                m1 = 0.3 * dist - 0.3 * angle
             elif abs(angle) > 15:
-                m0 = 0.15 * dist + 0.2 * angle
-                m1 = 0.15 * dist - 0.2 * angle
+                m0 = 0.3 * dist + 0.4 * angle
+                m1 = 0.3 * dist - 0.4 * angle
             else:
                 if dist < 2.5 * dist_aa and self.state == "no tocar":
                     m0 = 0
                     m1 = 0
                 elif dist < 2.5 * dist_aa and self.state == "line":
-                    m0 = 50
-                    m1 = 50
+                    m0 = 70
+                    m1 = 70
                 else:
-                    m0 = 0.2 * dist + 0.2 * angle
-                    m1 = 0.2 * dist - 0.2 * angle
+                    m0 = 0.3 * dist + 0.5 * angle
+                    m1 = 0.3 * dist - 0.5 * angle
             
             if self.state == "center":
                 if dist < 2.3 * dist_aa:

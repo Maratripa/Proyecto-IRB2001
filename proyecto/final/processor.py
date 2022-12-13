@@ -27,11 +27,11 @@ def get_proyection(arco, pelota, pos_robot, angulo_deg, distancia):
     vec_arco_pelota = np.array(arco) - np.array(pelota)
     angulo_arco_pelota = np.arctan2(vec_arco_pelota[1], vec_arco_pelota[0])
 
-    x1 = pelota[0] + distancia * np.cos(angulo_arco_pelota + angulo)
-    y1 = pelota[1] + distancia * np.sin(angulo_arco_pelota + angulo)
+    x1 = int(pelota[0] + distancia * np.cos(angulo_arco_pelota + angulo))
+    y1 = int(pelota[1] + distancia * np.sin(angulo_arco_pelota + angulo))
 
-    x2 = pelota[0] + distancia * np.cos(angulo_arco_pelota - angulo)
-    y2 = pelota[1] + distancia * np.sin(angulo_arco_pelota - angulo)
+    x2 = int(pelota[0] + distancia * np.cos(angulo_arco_pelota - angulo))
+    y2 = int(pelota[1] + distancia * np.sin(angulo_arco_pelota - angulo))
 
     pos1 = np.array((x1, y1))
     pos2 = np.array((x2, y2))
@@ -40,9 +40,9 @@ def get_proyection(arco, pelota, pos_robot, angulo_deg, distancia):
     dist2 = np.linalg.norm(np.array(pos_robot) - pos2)
 
     if dist1 < dist2:
-        return dist1
+        return pos1
     else:
-        return dist2
+        return pos2
 
 class VideoCapture:
     def __init__(self, src=0):
@@ -106,6 +106,12 @@ class VideoCapture:
             cv2.line(frame, self.centers[1], objetivo, (255, 255, 255), 3) #type: ignore , linea atras objetivo
         
             cv2.circle(frame, objetivo, 5, (0, 0, 255), -1)
+        
+        if self.state == "atk_2":
+            dist = 3 * np.linalg.norm(np.array(self.centers[0]) - np.array(self.centers[1]))
+            proy = get_proyection(self.arcos[1], self.centers[2], self.centers[1], 180, dist)
+            print(proy)
+            cv2.circle(frame, proy, 5, (0, 255, 0), -1)
 
         cv2.imshow("Video", frame)
         cv2.imshow("Mask", result)
@@ -146,6 +152,8 @@ class VideoCapture:
                 self.state = "atk_1"
             elif k == ord('s'):
                 self.state = "atk_2"
+            elif k == ord('x'):
+                self.state = "atk_x"
             elif k == ord('h'):
                 self.state = "stop"
             
@@ -196,7 +204,7 @@ class ProcessMasks:
         if obj == "center":
             self.objective = self.screen_center
             self.objective2 = None
-        elif obj in ("ball", "no tocar", "line", "def_1", "def_3") and len(self.centers) > 2:
+        elif obj in ("ball", "no tocar", "line", "def_1", "def_3", "atk_x") and len(self.centers) > 2:
             self.objective = self.centers[2]
             self.objective2 = None
         elif obj == "def_2" and len(self.centers) > 2 and len(self.arcos) > 0:
@@ -235,8 +243,8 @@ class ProcessMasks:
             centers = []
             for mask in self.masks:
                 # bilateral = cv2.bilateralFilter(mask, 9, 75, 75)
-                median = cv2.medianBlur(mask, 7)
-                blur = cv2.GaussianBlur(median, (5, 5), 0)
+                # median = cv2.medianBlur(mask, 7)
+                blur = cv2.GaussianBlur(mask, (51, 51), 0)
                 _, th3 = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
                 M = cv2.moments(th3)
                 if M["m00"] != 0:
